@@ -42,11 +42,17 @@ def main():
             ["docker", "image", "inspect", "--format", "{{index .RepoDigests 0}}", image]
         )
         local_digest = local.split("@", 1)[1] if "@" in local else ""
-        remote_out, remote_code = run(["docker", "manifest", "inspect", image])
+        # Luu y: `docker manifest inspect` thuong khong co truong digest trong
+        # JSON tra ve, digest nam trong ban --verbose, o Descriptor.digest.
+        remote_out, remote_code = run(
+            ["docker", "manifest", "inspect", "--verbose", image]
+        )
         remote_digest = ""
         if remote_code == 0 and remote_out:
             try:
-                remote_digest = json.loads(remote_out).get("digest", "")
+                data = json.loads(remote_out)
+                descriptor = data.get("Descriptor") or {}
+                remote_digest = descriptor.get("digest", "") or data.get("digest", "")
             except json.JSONDecodeError:
                 remote_digest = ""
         if not local_digest or not remote_digest:
