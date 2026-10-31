@@ -252,6 +252,65 @@ def send_telegram(token, chat_id, text):
         return False
 
 
+def get_json(url):
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def get_market_snapshot():
+    """Lấy bảng giá tham khảo từ API công khai, không cần key.
+
+    Nguồn hiện dùng: CoinGecko cho BTC/ETH theo USD, exchangerate-api cho
+    USD/VND. VN-Index và giá vàng trong nước không có API công khai miễn phí
+    đáng tin nào ở đây, nên bot không bịa số cho 2 mục đó, mà chỉ ghi chú
+    kiểm tra trên sàn/broker. Nếu API nào lỗi, mục đó bị bỏ qua, không làm
+    hỏng cả bản tin.
+    """
+    lines = []
+    try:
+        data = get_json(
+            "https://api.coingecko.com/api/v3/simple/price"
+            "?ids=bitcoin,ethereum&vs_currencies=usd"
+        )
+        btc = data.get("bitcoin", {}).get("usd")
+        eth = data.get("ethereum", {}).get("usd")
+        if btc:
+            lines.append(f"Bitcoin (BTC): ${btc:,.0f}")
+        if eth:
+            lines.append(f"Ethereum (ETH): ${eth:,.0f}")
+    except Exception as exc:
+        print(f"CoinGecko lỗi: {exc}", file=sys.stderr)
+    try:
+        data = get_json("https://api.exchangerate-api.com/v4/latest/USD")
+        vnd = (data.get("rates") or {}).get("VND")
+        if vnd:
+            lines.append(f"USD/VND: {vnd:,.0f} VND")
+    except Exception as exc:
+        print(f"Tỷ giá lỗi: {exc}", file=sys.stderr)
+    if not lines:
+        return ""
+    today = datetime.now().astimezone().strftime("%d/%m/%Y %H:%M")
+    text = "📊 Bảng giá tham khảo " + today + "\n" + "\n".join(lines)
+    text += "\nVN-Index và giá vàng trong nước: kiểm tra trên sàn/broker, bot không bịa số."
+    text += "\nGiá chỉ để tham khảo, không phải tín hiệu giao dịch."
+    return text
+
+
+def send_market(token, chat_id):
+    text = get_market_snapshot()
+    if not text:
+        if token and chat_id:
+            send_telegram(token, chat_id, "Bảng giá tham khảo: hiện không lấy được dữ liệu từ API công khai, hãy thử lại sau.")
+        else:
+            print("Bảng giá tham khảo: không lấy được dữ liệu.")
+        return
+    if token and chat_id:
+        send_telegram(token, chat_id, text)
+    else:
+        print(text)
+
+
 def format_item(item):
     meta = " · ".join(
         part for part in [item.get("country", ""), item.get("topic", "")]
@@ -426,7 +485,8 @@ def handle_updates(conn, token, chat_id):
                 "/moi - 10 tin mới nhất\n"
                 "/trading - tin trading\n"
                 "/macro - tin macro, Fed, lãi suất\n"
-                "/vn - tin Việt Nam"
+                "/vn - tin Việt Nam\n"
+                "/market - bảng giá tham khảo BTC, ETH, USD/VND"
             )
             send_telegram(token, chat_id, reply)
         elif text == "/moi":
@@ -443,6 +503,8 @@ def handle_updates(conn, token, chat_id):
             items = latest_items(conn, category="VN-Tin tức", limit=5)
             items += latest_items(conn, category="VN-Trading", limit=5)
             send_list(token, chat_id, items[:10], "Tin Việt Nam")
+        elif text == "/market":
+            send_market(token, chat_id)
 
 
 def send_daily(conn, token, chat_id, hours=24):
@@ -497,6 +559,7 @@ def main():
     parser.add_argument("--once", action="store_true", help="Kiểm tra feed một lần rồi thoát")
     parser.add_argument("--poll", action="store_true", help="Chạy vòng lặp nhận lệnh Telegram")
     parser.add_argument("--daily", action="store_true", help="Lấy feed mới và gửi bản tin daily theo category")
+    parser.add_argument("--market", action="store_true", help="Lấy bảng giá tham khảo BTC, ETH, USD/VND rồi thoát")
     parser.add_argument("--hours", type=int, default=24, help="Số giờ nhìn lại cho --daily, mặc định 24")
     args = parser.parse_args()
     load_dotenv()
@@ -505,9 +568,15 @@ def main():
     if not token or not chat_id:
         print("Chưa có TELEGRAM_BOT_TOKEN hoặc TELEGRAM_CHAT_ID: vẫn tạo digest, không gửi Telegram.")
     conn = init_db()
+    if args.market:
+        send_market(token, chat_id)
+        conn.close()
+        return
     if args.daily:
         check_feeds(conn, token, chat_id, send_alerts=False)
         send_daily(conn, token, chat_id, hours=args.hours)
+        # Bảng giá tham khảo kèm cuối daily, nếu API lỗi thì bỏ qua, không hỏng daily.
+        send_market(token, chat_id)
         conn.close()
         return
     if args.poll and token and chat_id:
