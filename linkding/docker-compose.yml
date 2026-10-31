@@ -1,0 +1,11 @@
+services:
+  linkding:
+    image: sissbruecker/linkding:latest
+    container_name: linkding
+    restart: unless-stopped
+    volumes:
+      - ./data:/etc/linkding/data
+    ports:
+      - "8085:9090"
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
