@@ -171,6 +171,21 @@ def fetch_feed(url):
     return items
 
 
+def derive_country_topic(feed):
+    """Suy ra quốc gia và chủ đề từ feed, ưu tiên trường có sẵn trong feeds.json."""
+    category = feed.get("category", "")
+    country = feed.get("country") or ("Việt Nam" if category.startswith("VN-") else "Quốc tế")
+    if feed.get("topic"):
+        topic = feed["topic"]
+    elif "Macro" in category:
+        topic = "Vĩ mô"
+    elif "Trading" in category:
+        topic = "Trading"
+    else:
+        topic = "Tin tức"
+    return country, topic
+
+
 def init_db():
     DB_FILE.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_FILE)
@@ -187,6 +202,18 @@ def init_db():
         )
         """
     )
+    # Nâng cấp DB cũ: thêm cột summary, country, topic nếu chưa có.
+    # DB trên máy đã tạo từ bản bot cũ sẽ tự nâng cấp ở lần chạy đầu tiên,
+    # không cần xóa bot-data/seen.db.
+    for column, definition in [
+        ("summary", "TEXT"),
+        ("country", "TEXT"),
+        ("topic", "TEXT"),
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE seen ADD COLUMN {column} {definition}")
+        except Exception:
+            pass
     conn.commit()
     return conn
 
@@ -226,6 +253,12 @@ def send_telegram(token, chat_id, text):
 
 
 def format_item(item):
+    meta = " · ".join(
+        part for part in [item.get("country", ""), item.get("topic", "")]
+        if part
+    )
+    if meta:
+        return f"📰 [{item['category']}] {item['source']}\n{meta}\n{item['title']}\n{item['link']}"
     return f"📰 [{item['category']}] {item['source']}\n{item['title']}\n{item['link']}"
 
 
@@ -243,6 +276,7 @@ def check_feeds(conn, token, chat_id, send_alerts=True):
         except Exception as exc:
             print(f"Feed lỗi {feed['name']}: {exc}", file=sys.stderr)
             continue
+        country, topic = derive_country_topic(feed)
         for item in items[:10]:
             item_id = item["link"]
             row = conn.execute(
@@ -251,8 +285,8 @@ def check_feeds(conn, token, chat_id, send_alerts=True):
             if row:
                 continue
             conn.execute(
-                "INSERT INTO seen (id, title, link, source, category, published, created)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO seen (id, title, link, source, category, published, created, summary, country, topic)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     item_id,
                     item["title"],
@@ -261,6 +295,9 @@ def check_feeds(conn, token, chat_id, send_alerts=True):
                     feed["category"],
                     item["published"],
                     now,
+                    item["summary"],
+                    country,
+                    topic,
                 ),
             )
             record = {
@@ -270,6 +307,8 @@ def check_feeds(conn, token, chat_id, send_alerts=True):
                 "source": feed["name"],
                 "category": feed["category"],
                 "published": item["published"],
+                "country": country,
+                "topic": topic,
             }
             if send_alerts and is_important(
                 feed["category"], item["title"], item["summary"]
@@ -286,16 +325,26 @@ def check_feeds(conn, token, chat_id, send_alerts=True):
 
 def write_digest(conn):
     rows = conn.execute(
-        "SELECT title, link, source, category, published FROM seen"
+        "SELECT title, link, source, category, published, summary, country, topic FROM seen"
         " ORDER BY COALESCE(NULLIF(published, 0), created) DESC LIMIT 60"
     ).fetchall()
     items = []
-    for title, link, source, category, published in rows:
+    for title, link, source, category, published, summary, country, topic in rows:
+        # Tin cũ trong DB chưa có country/topic/summary thì suy ra lại từ category.
+        if not country or not topic:
+            fallback_country, fallback_topic = derive_country_topic(
+                {"category": category}
+            )
+            country = country or fallback_country
+            topic = topic or fallback_topic
         items.append({
             "title": title,
             "link": link,
             "source": source,
             "category": category,
+            "country": country,
+            "topic": topic,
+            "summary": summary or "",
             "published": published,
             "published_text": (
                 datetime.fromtimestamp(published, tz=timezone.utc)
@@ -321,19 +370,19 @@ def write_digest(conn):
 def latest_items(conn, category=None, limit=10):
     if category:
         rows = conn.execute(
-            "SELECT title, link, source, category FROM seen WHERE category = ?"
+            "SELECT title, link, source, category, country, topic FROM seen WHERE category = ?"
             " ORDER BY COALESCE(NULLIF(published, 0), created) DESC LIMIT ?",
             (category, limit),
         ).fetchall()
     else:
         rows = conn.execute(
-            "SELECT title, link, source, category FROM seen"
+            "SELECT title, link, source, category, country, topic FROM seen"
             " ORDER BY COALESCE(NULLIF(published, 0), created) DESC LIMIT ?",
             (limit,),
         ).fetchall()
     return [
-        {"title": t, "link": l, "source": s, "category": c}
-        for t, l, s, c in rows
+        {"title": t, "link": l, "source": s, "category": c, "country": co, "topic": to}
+        for t, l, s, c, co, to in rows
     ]
 
 
@@ -425,7 +474,7 @@ def send_daily(conn, token, chat_id, hours=24):
     for category in sorted(grouped):
         lines = [f"📌 {category}"]
         for i, item in enumerate(grouped[category], 1):
-            lines.append(f"{i}. {item['title']}")
+            lines.append(f"{i}. {item['title']} ({item['source']})")
             lines.append(f"   {item['link']}")
         text = "\n".join(lines)
         if token and chat_id:
