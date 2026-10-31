@@ -1,0 +1,92 @@
+# Stack tin tức cho InstaBox Linux.
+# Khác với stack dùng domain riêng: ở đây không dùng Caddy/subdomain.
+# Bạn truy cập bằng link do InstaBox publish cho từng cổng, xem HUONG-DAN.md.
+# Chạy: docker compose -f docker-compose.news.yml up -d
+# Chạy kèm bot nền: docker compose -f docker-compose.news.yml --profile bot up -d
+
+services:
+  freshrss:
+    image: freshrss/freshrss:latest
+    container_name: freshrss
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    environment:
+      TZ: "Asia/Ho_Chi_Minh"
+      CRON_MIN: "*/15"
+    ports:
+      - "8080:80"
+    volumes:
+      - ./freshrss/data:/var/www/FreshRSS/data
+      - ./freshrss/extensions:/var/www/FreshRSS/extensions
+
+  # Tạo feed cho trang không có RSS sẵn. Mặc định nhẹ, chưa cần Chromium/Redis.
+  rsshub:
+    image: diygod/rsshub:latest
+    container_name: rsshub
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    environment:
+      NODE_ENV: production
+      CACHE_TYPE: memory
+      TZ: "Asia/Ho_Chi_Minh"
+    ports:
+      - "1200:1200"
+    volumes:
+      - ./rsshub/cache:/app/cache
+
+  # WebApp tĩnh trong Telegram, đọc webapp/digest.json do bot.py tạo ra.
+  webapp:
+    image: nginx:alpine
+    container_name: news-webapp
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.25
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    ports:
+      - "8000:80"
+    volumes:
+      - ./webapp:/usr/share/nginx/html:ro
+
+  # Bot Telegram. Mặc định KHÔNG chạy, để tránh chạy trùng với bot chạy tay.
+  # Bật bằng: docker compose -f docker-compose.news.yml --profile bot up -d
+  bot:
+    image: python:3.13-alpine
+    container_name: news-bot
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    profiles:
+      - bot
+    environment:
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID}"
+      TZ: "Asia/Ho_Chi_Minh"
+    volumes:
+      - ./bot.py:/app/bot.py:ro
+      - ./feeds.json:/app/feeds.json:ro
+      - ./webapp:/app/webapp
+      - ./bot-data:/app/bot-data
+    working_dir: /app
+    command: >
+      sh -c "while true; do python3 bot.py --once; sleep 600; done"
