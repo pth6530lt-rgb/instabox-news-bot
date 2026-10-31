@@ -3,6 +3,13 @@ services:
     image: triliumnext/trilium:latest
     container_name: trilium
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     volumes:
       - ./data:/home/node/trilium-data
     ports:
