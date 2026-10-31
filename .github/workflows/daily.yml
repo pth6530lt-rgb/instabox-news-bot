@@ -1,0 +1,39 @@
+# File này để trong repo GitHub của bạn tại:
+#   .github/workflows/daily.yml
+# Sau đó vào repo Settings -> Secrets and variables -> Actions, tạo 2 secret:
+#   INSTABOX_API_KEY    : API key InstaBox, tạo trong dashboard InstaBox (API keys)
+#   INSTABOX_MACHINE_ID : ID máy agent-brower, dạng m_..., xem trong dashboard
+#                         hoặc chạy: instabox ls --json
+# Workflow này KHÔNG chứa và KHÔNG cần token Telegram, vì bot.py trên máy
+# đã đọc token từ file ~/news/.env trên máy (bạn tự tạo file đó bằng terminal,
+# đừng đưa .env lên GitHub).
+#
+# Lịch chạy mặc định: 00:00 UTC mỗi ngày = 07:00 giờ Việt Nam.
+# Muốn thêm buổi trưa 12:00 VN và chiều 17:00 VN, bỏ dấu # ở 2 dòng cron dưới.
+name: Daily news wake and digest
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+    # - cron: "0 5 * * *"
+    # - cron: "0 10 * * *"
+  workflow_dispatch:
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake InstaBox machine
+        run: |
+          curl -s -X POST "https://api.instabox.sh/v1/machines/${{ secrets.INSTABOX_MACHINE_ID }}/wake" \
+            -H "X-API-Key: ${{ secrets.INSTABOX_API_KEY }}" \
+            -H "Idempotency-Key: daily-${{ github.run_id }}" \
+            -H "Content-Type: application/json" || true
+          sleep 60
+
+      - name: Run daily bot on the machine
+        run: |
+          curl -s -X POST "https://api.instabox.sh/v1/machines/${{ secrets.INSTABOX_MACHINE_ID }}/exec" \
+            -H "X-API-Key: ${{ secrets.INSTABOX_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"argv": ["bash", "-lc", "cd ~/news && python3 bot.py --daily"]}'
