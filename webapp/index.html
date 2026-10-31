@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bản tin đã lọc</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 16px; background: var(--tg-theme-bg-color, #f6f7f9); color: var(--tg-theme-text-color, #111); }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.muted { color: #666; margin: 0 0 12px; font-size: 14px; }
+  .filters { position: sticky; top: 0; background: var(--tg-theme-bg-color, #f6f7f9); padding: 8px 0 12px; z-index: 2; }
+  input, select { width: 100%; padding: 10px; margin: 0 0 8px; border: 1px solid #ccc; border-radius: 10px; font-size: 15px; background: var(--tg-theme-bg-color, #fff); color: inherit; box-sizing: border-box; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .row select { margin-bottom: 0; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 4px; }
+  .chip { border: 1px solid #ccc; background: transparent; color: inherit; border-radius: 999px; padding: 6px 12px; font-size: 14px; cursor: pointer; }
+  .chip.active { background: #111; color: #fff; border-color: #111; }
+  .stats { font-size: 13px; color: #666; margin: 8px 0 0; }
+  .group { margin-top: 20px; }
+  .group h2 { font-size: 17px; margin: 0 0 8px; }
+  .group h2 span { color: #666; font-weight: 400; font-size: 14px; }
+  .item { background: var(--tg-theme-secondary-bg-color, #fff); border: 1px solid #e5e5e5; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+  .item a { color: inherit; text-decoration: none; font-weight: 700; line-height: 1.4; }
+  .meta { font-size: 13px; color: #666; margin-top: 6px; }
+  .summary { font-size: 14px; color: #444; margin-top: 6px; line-height: 1.45; }
+  .note { font-size: 13px; color: #666; margin-top: 20px; line-height: 1.5; }
+  button.reset { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #ccc; background: transparent; color: inherit; font-size: 14px; cursor: pointer; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>Bản tin đã lọc</h1>
+<p class="muted" id="generated">Đang tải bản tin…</p>
+
+<div class="filters">
+  <input id="q" type="search" placeholder="Tìm tiêu đề, nguồn tin, ví dụ: VN-Index, FOMC, vàng…" />
+  <div class="row">
+    <select id="country">
+      <option value="">Tất cả quốc gia</option>
+      <option value="Việt Nam">Việt Nam</option>
+      <option value="Quốc tế">Quốc tế</option>
+    </select>
+    <select id="topic">
+      <option value="">Tất cả chủ đề</option>
+      <option value="Tin tức">Tin tức</option>
+      <option value="Trading">Trading</option>
+      <option value="Vĩ mô">Vĩ mô</option>
+    </select>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <select id="source"><option value="">Tất cả nguồn tin</option></select>
+    <select id="view">
+      <option value="grouped">Xem gom nhóm</option>
+      <option value="list">Xem danh sách</option>
+    </select>
+  </div>
+  <div class="chips" id="chips"></div>
+  <p class="stats" id="stats"></p>
+  <button class="reset" id="reset">Xóa bộ lọc</button>
+</div>
+
+<div id="list"></div>
+<p class="note">RSS chỉ là tin tức, không phải tín hiệu giao dịch và không phải dữ liệu giá realtime. Trước khi hành động, hãy kiểm tra lại giá, thanh khoản và nguồn gốc trên sàn hoặc broker của bạn.</p>
+
+<script>
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+  let allItems = [];
+  const GROUP_ORDER = ["VN-Tin tức", "VN-Trading", "QT-Macro", "QT-Trading", "QT-Tin tức"];
+
+  function esc(s) {
+    return String(s || "").replace(/[&<>"']/g, function (c) {
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function derive(item) {
+    const cat = item.category || "";
+    const country = item.country || (cat.startsWith("VN-") ? "Việt Nam" : "Quốc tế");
+    let topic = item.topic;
+    if (!topic) topic = cat.includes("Macro") ? "Vĩ mô" : cat.includes("Trading") ? "Trading" : "Tin tức";
+    return { country: country, topic: topic };
+  }
+  function filtered() {
+    const q = document.getElementById("q").value.toLowerCase();
+    const country = document.getElementById("country").value;
+    const topic = document.getElementById("topic").value;
+    const source = document.getElementById("source").value;
+    return allItems.filter(function (it) {
+      const d = derive(it);
+      if (country && d.country !== country) return false;
+      if (topic && d.topic !== topic) return false;
+      if (source && it.source !== source) return false;
+      if (q && !((it.title + " " + it.source + " " + (it.summary || "")).toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }
+  function itemHtml(it) {
+    const d = derive(it);
+    const summary = it.summary ? it.summary.slice(0, 180) : "";
+    return '<div class="item"><a href="' + esc(it.link) + '" target="_blank" rel="noopener">' + esc(it.title) + '</a>'
+      + '<div class="meta">' + esc(d.country) + ' · ' + esc(d.topic) + ' · ' + esc(it.source)
+      + (it.published_text ? ' · ' + esc(it.published_text) : '') + '</div>'
+      + (summary ? '<div class="summary">' + esc(summary) + '</div>' : '')
+      + '</div>';
+  }
+  function render() {
+    const list = document.getElementById("list");
+    const stats = document.getElementById("stats");
+    const items = filtered();
+    stats.textContent = "Đang hiển thị " + items.length + " / " + allItems.length + " tin";
+    if (!items.length) {
+      list.innerHTML = "<p>Chưa có tin phù hợp. Hãy thử xóa bộ lọc hoặc đợi bot chạy xong một lần rồi mở lại.</p>";
+      return;
+    }
+    if (document.getElementById("view").value === "list") {
+      list.innerHTML = items.map(itemHtml).join("");
+      return;
+    }
+    const groups = {};
+    items.forEach(function (it) { (groups[it.category || "Khác"] = groups[it.category || "Khác"] || []).push(it); });
+    const ordered = Object.keys(groups).sort(function (a, b) {
+      const ia = GROUP_ORDER.indexOf(a), ib = GROUP_ORDER.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+    list.innerHTML = ordered.map(function (cat) {
+      return '<div class="group"><h2>' + esc(cat) + ' <span>(' + groups[cat].length + ' tin)</span></h2>'
+        + groups[cat].map(itemHtml).join("") + "</div>";
+    }).join("");
+  }
+  function fillSources() {
+    const sel = document.getElementById("source");
+    const sources = [...new Set(allItems.map(function (it) { return it.source; }))].sort();
+    sources.forEach(function (s) {
+      const o = document.createElement("option");
+      o.value = s; o.textContent = s; sel.appendChild(o);
+    });
+    const chips = document.getElementById("chips");
+    ["Việt Nam", "Quốc tế", "Trading", "Vĩ mô", "Tin tức"].forEach(function (label) {
+      const b = document.createElement("button");
+      b.className = "chip"; b.textContent = label;
+      b.addEventListener("click", function () {
+        if (label === "Việt Nam" || label === "Quốc tế") {
+          document.getElementById("country").value = label;
+        } else {
+          document.getElementById("topic").value = label;
+        }
+        document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("active"); });
+        b.classList.add("active");
+        render();
+      });
+      chips.appendChild(b);
+    });
+  }
+  fetch("digest.json", { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      allItems = (data.items || []).map(function (it) {
+        const d = derive(it);
+        it.country = d.country; it.topic = d.topic;
+        return it;
+      });
+      // Mới nhất lên trước, tin không có ngày xếp sau.
+      allItems.sort(function (a, b) { return (b.published || 0) - (a.published || 0); });
+      document.getElementById("generated").textContent = "Cập nhật: " + (data.generated_at || "") + " · " + allItems.length + " tin";
+      fillSources();
+      render();
+    })
+    .catch(function () {
+      document.getElementById("generated").textContent = "Chưa có digest.json. Hãy chạy bot.py --once một lần rồi mở lại.";
+      document.getElementById("list").innerHTML = "<p>Chưa có bản tin. Hãy chạy bot trên máy rồi mở lại trang này.</p>";
+    });
+  ["q", "country", "topic", "source", "view"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", render);
+    document.getElementById(id).addEventListener("change", render);
+  });
+  document.getElementById("reset").addEventListener("click", function () {
+    document.getElementById("q").value = "";
+    document.getElementById("country").value = "";
+    document.getElementById("topic").value = "";
+    document.getElementById("source").value = "";
+    document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("active"); });
+    render();
+  });
+</script>
+</body>
+</html>
