@@ -23,6 +23,8 @@ LINKDING="$(link linkding-link.txt)"
 FILEBROWSER="$(link filebrowser-link.txt)"
 KUMA="$(link uptime-kuma-link.txt)"
 PORTAINER="$(link portainer-link.txt)"
+NTFY="$(link ntfy-link.txt)"
+ITTOOLS="$(link it-tools-link.txt)"
 # Changedetection khong co file link rieng tren may, giu "#" de bo sung sau.
 cat > "$OUT" <<YAML
 - Tin tuc:
@@ -55,6 +57,10 @@ cat > "$OUT" <<YAML
         icon: mdi-folder-outline
         href: "$FILEBROWSER"
         description: Quan ly file tren may, doi mat khau mac dinh ngay
+    - IT-Tools:
+        icon: mdi-tools
+        href: "$ITTOOLS"
+        description: Cong cu web nhe cho cong viec, khong gui du lieu ra ngoai
 - He thong:
     - Uptime Kuma:
         icon: uptime-kuma
@@ -68,6 +74,10 @@ cat > "$OUT" <<YAML
         icon: portainer
         href: "$PORTAINER"
         description: Quan ly container Docker, chi dung private
+    - Ntfy:
+        icon: mdi-bell-outline
+        href: "$NTFY"
+        description: Thong bao he thong, topic luu trong ~/ntfy-topic.txt
 YAML
 echo "Da ghi $OUT"
 grep -c 'href: "#"' "$OUT" || true
