@@ -18,3 +18,8 @@ services:
       - TZ=Asia/Ho_Chi_Minh
       - PUID=1000
       - PGID=1000
+      # Ban Homepage moi bat buoc khai bao host duoc phep, neu khong se tra
+      # loi 400 "Host validation failed" ca khi mo bang localhost lan link
+      # private cua InstaBox. Host instabox.tech nay la host cua cong 3002,
+      # khong chua token, token nam trong query ?_token=... nen van an toan.
+      - HOMEPAGE_ALLOWED_HOSTS=localhost:3000,localhost:3002,127.0.0.1:3000,127.0.0.1:3002,3002-agqycf5tysdh6a6vrvqcwkgwzy.instabox.tech
