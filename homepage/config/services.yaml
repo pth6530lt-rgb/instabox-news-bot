@@ -33,6 +33,10 @@
         icon: mdi-folder-outline
         href: "#"
         description: Quan ly file tren may, doi mat khau mac dinh ngay
+    - IT-Tools:
+        icon: mdi-tools
+        href: "#"
+        description: Cong cu web nhe cho cong viec, khong gui du lieu ra ngoai
 - He thong:
     - Uptime Kuma:
         icon: uptime-kuma
@@ -46,3 +50,7 @@
         icon: portainer
         href: "#"
         description: Quan ly container Docker, chi dung private
+    - Ntfy:
+        icon: mdi-bell-outline
+        href: "#"
+        description: Thong bao he thong, topic luu trong ~/ntfy-topic.txt
