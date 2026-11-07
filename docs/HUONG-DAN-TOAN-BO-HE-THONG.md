@@ -23,6 +23,7 @@ trong các file `*-link.txt` và `~/news/.env`.
 13. Vận hành định kỳ: lịch tuần, lịch tháng
 14. Xử lý sự cố: bảng tra nhanh
 15. Tối ưu hoá tiếp theo: thứ tự đề xuất
+16. Nhật ký cập nhật 07/11/2026: 3 đợt update 11 app
 
 ---
 
@@ -207,6 +208,12 @@ curl -O https://raw.githubusercontent.com/pth6530lt-rgb/instabox-news-bot/main/t
 docker compose up -d
 docker compose ps
 ```
+
+Ngoại lệ duy nhất: stack tin tức trong `~/news` dùng tên file
+`docker-compose.news.yml`, không phải `docker-compose.yml`, nên mọi
+lệnh compose trong thư mục đó phải thêm `-f`, ví dụ
+`docker compose -f docker-compose.news.yml up -d freshrss rsshub webapp`.
+Lệnh compose thường trong `~/news` sẽ báo không tìm thấy file cấu hình.
 
 **Bước 5 — Kiểm tra bằng lệnh.** Dùng `docker inspect` để xem log và
 RAM đã áp dụng chưa, dùng `curl http://localhost:<cong>` để xem app
@@ -552,9 +559,28 @@ Vaultwarden, Linkding, Uptime Kuma và Changedetection; báo UNKNOWN
 cho Ntfy và FileBrowser. Tín hiệu UPDATE đã được kiểm chứng tay cho
 `nginx:alpine`: Id local bắt đầu bằng `785835ea65db`, config digest
 trên registry bắt đầu bằng `7cac34a4d72b`, hai digest khác nhau nên
-thật sự có bản mới, không phải báo sai. Dù vậy, không update app nào
+lúc đó thật sự có bản mới trên registry. Dù vậy, không update app nào
 chỉ vì script báo UPDATE, mà phải tạo snapshot trước, rồi update
 từng app một và kiểm tra lại sau mỗi app.
+
+Hạn chế đã phát hiện sau 3 đợt update ngày 07/11/2026, xem thêm mục
+16: sau khi pull xong, script vẫn báo UPDATE cho cả những image vừa
+pull và cho cả FreshRSS mà lệnh pull đã xác nhận là đã mới nhất. Vì
+vậy tín hiệu UPDATE của script không đáng tin để kết luận một app
+"còn cần update". Bằng chứng update thật là lệnh pull và kiểm tra
+bằng localhost, không phải kết quả của script. Nguyên nhân nghi ngờ
+nhất: bản script cũ so sánh cố định với platform amd64, trong khi
+docker pull tải image theo kiến trúc của máy đang chạy; nếu máy chạy
+kiến trúc khác thì hai digest so sánh không bao giờ khớp, script sẽ
+báo UPDATE mãi. Bản script mới đã sửa theo hướng này: lấy kiến trúc
+từ `platform.machine()` (x86_64 thành amd64, aarch64 thành arm64),
+so sánh với mục có platform đó, và in cả hai digest (12 ký tự đầu)
+để lần chạy sau có thể chẩn đoán bằng mắt. Cách chẩn đoán: chạy lại
+script sau khi sửa, nếu image vừa pull xong chuyển thành OK thì lỗi
+đã sửa đúng; nếu vẫn báo UPDATE thì so sánh hai digest in ra, nếu
+remote thay đổi sau mỗi lần chạy thì registry vừa đẩy bản mới, còn
+nếu local không đổi mà remote luôn khác thì script đang chọn sai mục
+platform trong manifest list, cần sửa tiếp.
 
 ## 10. Log rotation và giới hạn tài nguyên
 
@@ -772,6 +798,71 @@ lên, và chỉ có giá trị khi bạn thật sự tải tài liệu lên làm
 kiếm. Cũng không làm app lưu ảnh, xem phim, chạy mô hình AI local,
 hay app cần chạy 24/7 trên máy free, vì ổ chỉ 20GB và máy sẽ tự
 pause.
+
+---
+
+*Hết tài liệu. Khi hệ thống thay đổi, cập nhật file này cùng lúc với
+`docs/INVENTORY.md`, để tài liệu học tập luôn khớp với máy thật.*
+
+---
+
+## 16. Nhật ký cập nhật 07/11/2026: 3 đợt update 11 app
+
+Ngày 07/11/2026, sau khi script kiểm tra báo UPDATE cho 11 app, toàn
+bộ 11 app đã được update theo 3 đợt, sau khi tạo snapshot mới trước.
+
+### 16.1 Trước khi update
+
+- Snapshot mới `pro-v2-2026-11-07` tạo ngày 07/11/2026 lúc 22:25,
+  đã kiểm tra thấy trong Dashboard, bên cạnh snapshot cũ
+  `pro-v1-2026-11-07`. Đã dùng 2 trong 5 snapshot miễn phí.
+- Script kiểm tra báo UPDATE cho 11 app, UNKNOWN cho Ntfy và
+  FileBrowser. Tín hiệu đã kiểm chứng tay cho `nginx:alpine` lúc
+  22:11: Id local `785835ea65db`, config digest trên registry
+  `7cac34a4d72b`, khác nhau nên lúc đó thật sự có bản mới.
+
+### 16.2 Đợt 1 — stack tin tức: WebApp, RSSHub, FreshRSS
+
+- WebApp (nginx:alpine, image mới `713fc2ebfd92` ngày 05/11/2026) và
+  RSSHub (image mới `3e1607718bc0` ngày 07/10/2026) đã pull và tạo lại,
+  cả hai đều Up, cổng 8000 và 1200.
+- FreshRSS không tạo lại vì image đã mới nhất, vẫn Up ở cổng 8080.
+- Kiểm tra bằng localhost: FreshRSS 302 chuyển hướng tới trang đăng
+  nhập, RSSHub 200, WebApp 200 và vẫn hiện digest 60 tin từ 31/10.
+- Bài học: file compose trong `~/news` tên là
+  `docker-compose.news.yml`, phải dùng `-f` khi chạy lệnh compose.
+
+### 16.3 Đợt 2 — Homepage, IT-Tools, Ntfy
+
+- Cả 3 app đều pull và tạo lại, đều Running, localhost trả về 200 ở
+  các cổng 3002, 3004 và 3003, tiêu đề IT-Tools đã kiểm tra đúng.
+- File compose của Homepage không bị tải lại, nên biến
+  `HOMEPAGE_ALLOWED_HOSTS` giữ nguyên, không bị lỗi 400 trở lại.
+- File `~/ntfy-topic.txt` không bị chạm tới, tên topic giữ nguyên.
+- Không tạo snapshot mới cho đợt 2.
+
+### 16.4 Đợt 3 — 6 app còn lại
+
+- Vaultwarden và Changedetection pull và tạo lại, localhost trả về
+  200 ở các cổng 8082 và 5000. Vaultwarden lúc kiểm tra đang ở trạng
+  thái sức khoẻ đang khởi động nhưng đã trả lời 200.
+- Linkding, Trilium, Uptime Kuma và Portainer pull xong nhưng image
+  đã mới nhất nên container giữ nguyên, không tạo lại. Localhost:
+  Linkding 302, Trilium 200, Uptime Kuma 302, Portainer 307, đều là
+  chuyển hướng tới trang đăng nhập hoặc setup, đúng như mong đợi.
+- Portainer chỉ được dùng để pull và tạo lại chính nó, không dùng để
+  update app nào khác.
+
+### 16.5 Kết luận sau 3 đợt
+
+- Cả 11 app đều đã ở bản image mới nhất mà registry có lúc pull, và
+  đều trả lời được trên localhost, không app nào lỗi.
+- Script kiểm tra cập nhật vẫn báo UPDATE cho cả những image vừa
+  pull, nên kết luận đã sửa lại: script không đáng tin để kết luận
+  một app "còn cần update". Bằng chứng thật là lệnh pull và kiểm tra
+  bằng localhost. Script đã được sửa ngày 07/11/2026 để so sánh theo
+  kiến trúc máy thật và in cả hai digest, xem mục 9.3, và cần chạy
+  lại trên máy để kiểm chứng xem lỗi đã hết chưa.
 
 ---
 
