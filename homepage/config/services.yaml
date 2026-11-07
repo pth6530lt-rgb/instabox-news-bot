@@ -1,0 +1,48 @@
+# Trang tong gom link private cua cac dich vu tren may agent-brower.
+# File nay duoc tao bang script gen-services.sh tren may, doc link tu cac
+# file *-link.txt trong thu muc home, nen token khong co trong repo.
+# Neu chay script ma mot dich vu chua co file link thi href se la "#"
+# va ban can bo sung link private cua dich vu do sau.
+- Tin tuc:
+    - FreshRSS:
+        icon: freshrss
+        href: "#"
+        description: Doc tin RSS, 11 feed VN va quoc te
+    - WebApp tin:
+        icon: mdi-newspaper-variant-outline
+        href: "#"
+        description: Ban tin da loc theo quoc gia va chu de
+    - RSSHub:
+        icon: mdi-rss
+        href: "#"
+        description: Tao feed RSS cho trang khong co RSS
+- Cong viec:
+    - Vaultwarden:
+        icon: bitwarden
+        href: "#"
+        description: Quan ly mat khau, bat 2FA sau khi tao tai khoan
+    - Trilium:
+        icon: trilium
+        href: "#"
+        description: Ghi chu
+    - Linkding:
+        icon: mdi-bookmark-multiple-outline
+        href: "#"
+        description: Luu link doc sau
+    - FileBrowser:
+        icon: mdi-folder-outline
+        href: "#"
+        description: Quan ly file tren may, doi mat khau mac dinh ngay
+- He thong:
+    - Uptime Kuma:
+        icon: uptime-kuma
+        href: "#"
+        description: Giam sat suc khoe cac dich vu
+    - Changedetection:
+        icon: changedetection
+        href: "#"
+        description: Theo doi thay doi trang web
+    - Portainer:
+        icon: portainer
+        href: "#"
+        description: Quan ly container Docker, chi dung private
