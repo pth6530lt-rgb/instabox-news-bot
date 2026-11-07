@@ -15,8 +15,9 @@ Nguyên tắc: mọi cổng đều private, link có token giữ kín như mật
 | Linkding | 8085 | ~/linkding | ~/linkding-link.txt |
 | Portainer | 9000 | ~/portainer | ~/portainer-link.txt |
 | Uptime Kuma | 3001 | ~/uptime-kuma | ~/uptime-kuma-link.txt |
+| Trang tổng Homepage | 3002 | ~/homepage | ~/homepage-link.txt |
 
-Tổng cộng 10 dịch vụ, 10 cổng private, trong giới hạn 16 cổng của InstaBox.
+Tổng cộng 11 dịch vụ, 11 cổng private, trong giới hạn 16 cổng của InstaBox.
 
 ## Việc chỉ người dùng mới làm được
 - Đặt mật khẩu cho Changedetection, Portainer, Trilium, Linkding, FreshRSS.
