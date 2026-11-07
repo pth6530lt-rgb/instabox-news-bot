@@ -375,6 +375,14 @@ Mỗi mục dưới đây trả lời 3 câu hỏi: app làm gì, code chính n�
   `*-link.txt` trong thư mục home rồi ghi lại file dịch vụ, sau đó
   chạy `docker compose up -d` để tạo lại Homepage. Lần chạy gần
   nhất đã điền được 11 trong 12 link, còn thiếu Changedetection.
+- Dọn nhóm mặc định: Homepage tự tạo file `bookmarks.yaml` mặc định
+  với 3 nhóm Developer, Social và Entertainment nếu file này không
+  tồn tại, nên thư mục cấu hình phải có file
+  `homepage/config/bookmarks.yaml` rỗng có chủ đích (nội dung là
+  `[]` kèm comment giải thích). Đã áp dụng ngày 07/11/2026: file đã
+  lên repo, tải về máy, Homepage tự nhận file mới mà không cần tạo
+  lại container, API bookmarks trả về danh sách rỗng và trang chỉ
+  còn 3 nhóm Tin tức, Công việc và Hệ thống.
 
 ### 6.12 Ntfy — gửi thông báo (cổng 3003)
 
@@ -563,24 +571,27 @@ lúc đó thật sự có bản mới trên registry. Dù vậy, không update a
 chỉ vì script báo UPDATE, mà phải tạo snapshot trước, rồi update
 từng app một và kiểm tra lại sau mỗi app.
 
-Hạn chế đã phát hiện sau 3 đợt update ngày 07/11/2026, xem thêm mục
-16: sau khi pull xong, script vẫn báo UPDATE cho cả những image vừa
-pull và cho cả FreshRSS mà lệnh pull đã xác nhận là đã mới nhất. Vì
-vậy tín hiệu UPDATE của script không đáng tin để kết luận một app
-"còn cần update". Bằng chứng update thật là lệnh pull và kiểm tra
-bằng localhost, không phải kết quả của script. Nguyên nhân nghi ngờ
-nhất: bản script cũ so sánh cố định với platform amd64, trong khi
-docker pull tải image theo kiến trúc của máy đang chạy; nếu máy chạy
-kiến trúc khác thì hai digest so sánh không bao giờ khớp, script sẽ
-báo UPDATE mãi. Bản script mới đã sửa theo hướng này: lấy kiến trúc
-từ `platform.machine()` (x86_64 thành amd64, aarch64 thành arm64),
-so sánh với mục có platform đó, và in cả hai digest (12 ký tự đầu)
-để lần chạy sau có thể chẩn đoán bằng mắt. Cách chẩn đoán: chạy lại
-script sau khi sửa, nếu image vừa pull xong chuyển thành OK thì lỗi
-đã sửa đúng; nếu vẫn báo UPDATE thì so sánh hai digest in ra, nếu
-remote thay đổi sau mỗi lần chạy thì registry vừa đẩy bản mới, còn
-nếu local không đổi mà remote luôn khác thì script đang chọn sai mục
-platform trong manifest list, cần sửa tiếp.
+Lỗi đã phát hiện và đã sửa xong ngày 07/11/2026, xem thêm mục 16:
+sau 3 đợt update, bản script cũ vẫn báo UPDATE cho cả những image
+vừa pull và cho cả FreshRSS mà lệnh pull đã xác nhận là đã mới nhất.
+Nguyên nhân thật sự, đã kiểm chứng bằng lệnh: trên Docker 29 dùng
+kho image containerd, Id của image là digest của danh sách manifest
+(manifest list, hay index), không phải config digest của một platform.
+Lệnh `docker pull nginx:alpine` báo "Image is up to date", Id local
+là `713fc2ebfd92`, nhưng trong 16 mục của manifest thì không mục nào
+có config digest trùng với nó, mục amd64 có config digest là
+`7cac34a4d72b`. Bản script cũ so sánh Id local với config digest của
+mục amd64, hai thứ khác loại nhau nên không bao giờ bằng nhau, script
+báo có bản mới mãi là đúng như vậy. Giả thuyết kiến trúc máy đã được
+kiểm tra và loại bỏ: máy chạy đúng x86_64, Docker cũng báo x86_64.
+Bản script mới sửa đúng chỗ: dùng `docker buildx imagetools inspect`
+để lấy digest của danh sách manifest trên registry rồi so sánh với Id
+local, hai thứ cùng loại nhau, và in cả hai digest (12 ký tự đầu) để
+chẩn đoán bằng mắt. Đã kiểm chứng ngày 07/11/2026: buildx v0.37.1 có
+sẵn trên máy, script mới báo OK cho cả 13 container, digest local
+bằng digest remote trong mọi trường hợp, kể cả Ntfy và FileBrowser
+trước đó báo không xác định. Từ giờ tín hiệu của script lại đáng tin
+để kết luận một app có cần update không.
 
 ## 10. Log rotation và giới hạn tài nguyên
 
@@ -857,12 +868,20 @@ bộ 11 app đã được update theo 3 đợt, sau khi tạo snapshot mới tr�
 
 - Cả 11 app đều đã ở bản image mới nhất mà registry có lúc pull, và
   đều trả lời được trên localhost, không app nào lỗi.
-- Script kiểm tra cập nhật vẫn báo UPDATE cho cả những image vừa
-  pull, nên kết luận đã sửa lại: script không đáng tin để kết luận
-  một app "còn cần update". Bằng chứng thật là lệnh pull và kiểm tra
-  bằng localhost. Script đã được sửa ngày 07/11/2026 để so sánh theo
-  kiến trúc máy thật và in cả hai digest, xem mục 9.3, và cần chạy
-  lại trên máy để kiểm chứng xem lỗi đã hết chưa.
+- Script kiểm tra cập nhật bản cũ báo UPDATE cho cả những image vừa
+  pull, nên lúc đó kết luận là script không đáng tin. Nguyên nhân đã
+  tìm ra và sửa xong ngày 07/11/2026, xem mục 9.3: bản cũ so sánh Id
+  của image, vốn là digest của danh sách manifest, với config digest
+  của mục amd64, hai thứ khác loại nhau nên không bao giờ bằng nhau.
+  Bản script mới so sánh digest của danh sách manifest với nhau bằng
+  `docker buildx imagetools inspect`, đã kiểm chứng trên máy: báo OK
+  cho cả 13 container, digest local bằng digest remote trong mọi
+  trường hợp. Từ giờ tín hiệu của script lại đáng tin.
+- Link private của Trang tổng đã cũ và phải xoay token ngày
+  07/11/2026, link mới đã lưu vào file `~/homepage-link.txt` trên
+  máy và đã gửi cho bạn trong đoạn chat, link cũ đã chết.
+- Ba nhóm mặc định của Trang tổng đã dọn xong ngày 07/11/2026 bằng
+  file `bookmarks.yaml` rỗng có chủ đích, xem mục 6.11.
 
 ---
 
