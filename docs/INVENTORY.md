@@ -17,8 +17,9 @@ Nguyên tắc: mọi cổng đều private, link có token giữ kín như mật
 | Uptime Kuma | 3001 | ~/uptime-kuma | ~/uptime-kuma-link.txt |
 | Trang tổng Homepage | 3002 | ~/homepage | ~/homepage-link.txt |
 | Ntfy | 3003 | ~/ntfy | ~/ntfy-link.txt |
+| IT-Tools | 3004 | ~/it-tools | ~/it-tools-link.txt |
 
-Tổng cộng 12 dịch vụ, 12 cổng private, trong giới hạn 16 cổng của InstaBox.
+Tổng cộng 13 dịch vụ, 13 cổng private, trong giới hạn 16 cổng của InstaBox.
 
 ## Việc chỉ người dùng mới làm được
 - Đặt mật khẩu cho Changedetection, Portainer, Trilium, Linkding, FreshRSS.
