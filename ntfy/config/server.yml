@@ -1,0 +1,11 @@
+# Ntfy server, chi dung trong mang private qua link token cua InstaBox.
+# Khong bat auth o day vi link private da co token; neu muon them lop
+# bao ve nua thi tao tai khoan bang `ntfy user add` trong container.
+# Luu y: topic mac dinh la cong khai voi bat ky ai biet ten topic, nen
+# dung ten topic kho doan va chi dung qua link private, khong chia se
+# ten topic ra ngoai.
+base-url: http://localhost:80
+listen-http: :80
+cache-file: /var/lib/ntfy/cache.db
+attachment-cache-dir: /var/lib/ntfy/attachments
+auth-default-access: read-write
