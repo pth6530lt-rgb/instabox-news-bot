@@ -16,5 +16,5 @@ services:
       - "8082:80"
     environment:
       - TZ=Asia/Ho_Chi_Minh
-      - SIGNUPS_ALLOWED=true
+      - SIGNUPS_ALLOWED=false
       - WEBSOCKET_ENABLED=true
